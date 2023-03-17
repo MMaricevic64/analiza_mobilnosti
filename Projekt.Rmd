@@ -1,0 +1,241 @@
+---
+title: Seminar - Analiza osobne mobilnosti temeljem očitanja opažanja osjetila akceleracije
+  na pametnom telefonu
+author: "Mario Maričević, Filip Grgur, Filip Nikolaus"
+date: "12/5/2021"
+output:
+  html_document
+---
+
+## **Uvod**
+
+Aplikacijom **AndroSensor** bilo je potrebno prikupiti opažanja akcelerometara prilikom dnevne aktivnosti (trčanje, brzo hodanje, planinarenje, biciklizam ili drugo po izboru) u trajanju od barem 30 minuta. Dobivene rezultate je bilo potrebno pohraniti u CSV datoteku i statistički anallizirati u programskom okruženju R. Nad podacima je bilo potrebno provesti opisnu statističku analizu, nacrtati pripadajuće kutijaste dijagrame te provesti eksperimentalnu statističku razdiobu. Nakon uspješno provedene statističke analize bilo je potrebno grafički prikazati putanju gibanja na podlozi OpenStreetMap uz mogućnost interaktivnog zahtjeva za ispis očitanja u željenoj točki trajektorije na digitalnoj karti. Uz navedeno trebalo je voditi računa o privatnosti te naposljetku interpretirati i komentirati dobivene rezultate.
+
+## **Podjela zadatka na manje cijeline**
+
+1.  Instalacija aplikacije AndroSensor, prikupljanje podataka prilikom dnevne aktivnosti i spremanje u CSV datoteku
+
+2.  Učitavanje podataka iz dobivene CSV datoteke
+
+3.  Opisna statistička analiza akcelerometarskih podataka
+
+4.  Kutijasti dijagrami - grafički prikaz statističke analize akcelerometarskih podataka
+
+5.  Eksperimentalne statističke razdiobe
+
+    -   Procjena eksperimentalne gustoće vjerojatnosti (density)
+
+    -   Provedba statističkih testova - Shapiro-Wilkov i Kolmogorov-Smirnov test
+
+6.  Priprema podataka lokacije za iscrtavanje putanje putem Leaflet mape
+
+7.  Priprema točaka za mogućnost interakcije u željenoj točki putanje kretanja (trajektorije)
+
+8.  Deklaracija Leaflet mape, iscrtavanje putanje kretanja i interaktivnih točaka
+
+9.  Konačni komentar i zaključak
+
+## **1.) Instalacija aplikacije AndroSensor, prikupljanje podataka prilikom dnevne aktivnosti i spremanje u CSV datoteku**
+
+Prvi korak izrade zadatka bio je prikupiti opažanja akcelerometra i lokacije prilikom dnevne aktivnosti u trajanju od barem 30 minuta. Kako bi prikupili podatke koristili smo aplikaciju AndroSensor koja se može pronaći, skinuti te instalirati na mobilni uređaj putem Google Play usluge na Android pametnom telefonu. Za dnevnu aktivnost odabrali smo hodanje. U samome početku izvedbe dnevne aktivnosti bilo je potrebno upaliti "snimanje" putem navedene aplikacije kako bi se za vrijeme aktivnosti opažanja pohranjivala na mobilnom uređaju. Završetkom aktivnosti i prekidom "snimanja", opažanja su spremljena u CSV datoteku koja je zatim prebačena na računalo kako bi ju se moglo statistički analizirati putem jezika za statističko računarstvo R.
+
+## **2.) Učitavanje podataka iz dobivene CSV datoteke**
+
+```{r}
+#Ciscenje radne povrsine
+rm(list = ls())
+
+#Definiranje potrebnih knjiznica
+library(leaflet)
+library(sp)
+library(raster)
+
+#Ucitavanje uzorka opazanja iz Sensor_record.csv datoteke
+setwd('E:/Desktop/Tema4 - Seminar')
+data <- read.csv('Sensor_record.csv', header=TRUE)
+
+#Podaci o lokaciji
+data.pos <- data[,c(23:25)]
+data.pos <- na.omit(data.pos)
+colnames(data.pos) <- c('latitude', 'longitude', 'height')
+
+#Podaci akcelerometra
+data.acc <- data[,c(1:3)]
+data.acc <- na.omit(data.acc)
+colnames(data.acc) <- c('accx', 'accy', 'accz')
+
+#Vrijeme
+data.time <- data[,c(33:33)]
+date <- as.POSIXlt(data.time)
+time <- date$hour/24 + date$min/(24*60) + date$sec/(24*3600) 
+```
+
+Na samome početku, definirali smo knjižnice koje će nam koristiti u izvršavanju našeg zadatka te učitali podatke iz dobivene CSV datoteke. Iz CSV datoteke izdvojena su opažanja akcelerometra, lokacije i vremena. Opažanja akcelerometra koristiti ćemo prilikom statističke analize dok će nam opažanja lokacije pomoći pri prikazu naše snimljene putanje kretanja na Leaflet mapi. Podaci o vremenu poslužit će nam prilikom ispisivanja očitanja u željenim točkama na snimljenoj putanji kretanja.
+
+## **3.) Opisna statistička analiza akcelerometarskih podataka i grafički prikaz**
+
+```{r}
+#Opisna statisticka analiza varijable akcelerometra x-osi
+print(summary(data.acc$accx))
+#Standardna devijacija varijable akcelerometra x-osi
+print(sd(data.acc$accx))
+#Graficki prikaz
+plot(time,data.acc$accx, col = 'red', type='l', main='Varijabla akcelerometra -x os kroz vrijeme', xlab='Vrijeme', ylab='Vrijednost')
+```
+
+Prema dobivenoj statističkoj analizi može se vidjeti kako je raspon opažanja koje sadrži statistička varijabla akcelerometra x -osi između -18.36890 i 18.88360. Također, njen medijan iznosi -0.32080 dok aritmetička sredina iznosi 0.08773. Standardna devijacija ili odstupanje iznosi 3.953597.
+
+```{r}
+#Opisna statisticka analiza varijable akcelerometra y-osi
+print(summary(data.acc$accy))
+#Standardna devijacija varijable akcelerometra y-osi
+print(sd(data.acc$accy))
+#Graficki prikaz
+plot(time,data.acc$accy, col = 'blue', type='l', main='Varijabla akcelerometra -y os kroz vrijeme', xlab='Vrijeme', ylab='Vrijednost')
+```
+
+Prema dobivenoj statističkoj analizi može se vidjeti kako je raspon opažanja koje sadrži statistička varijabla akcelerometra y -osi između -21.108 i 15.721. Također, njen medijan iznosi -5.107 dok aritmetička sredina iznosi -3.325. Standardna devijacija ili odstupanje iznosi 7.414391.
+
+```{r}
+#Opisna statisticka analiza varijable akcelerometra z-osi
+print(summary(data.acc$accz))
+#Standardna devijacija varijable akcelerometra z-osi
+print(sd(data.acc$accz))
+#Graficki prikaz
+plot(time,data.acc$accz, col = 'green', type='l', main='Varijabla akcelerometra -z os kroz vrijeme', xlab='Vrijeme', ylab='Vrijednost')
+```
+
+Prema dobivenoj statističkoj analizi može se vidjeti kako je raspon opažanja koje sadrži statistička varijabla akcelerometra z -osi između -15.831 i 20.667. Također, njen medijan iznosi 1.860 dok aritmetička sredina iznosi 2.715. Standardna devijacija ili odstupanje iznosi 5.746304.
+
+## **4.) Kutijasti dijagrami - grafički prikaz statističke analize akcelerometarskih podataka**
+
+```{r}
+##Graficki prikaz statisticke analize - Kutijasti dijagrami
+boxplot(data.acc$accx, col = 'red', main='Kutijasti diagram varijable akcelerometra -x os', xlab='Vrijednost opazanja', ylab='Kvartili')
+boxplot(data.acc$accy, col = 'blue', main='Kutijasti diagram varijable akcelerometra -y os', xlab='Vrijednost opazanja', ylab='Kvartili')
+boxplot(data.acc$accz, col = 'green', main='Kutijasti diagram varijable akcelerometra -z os', xlab='Vrijednost opazanja', ylab='Kvartili')
+```
+
+## **5.) Eksperimentalne statističke razdiobe**
+
+-   **Procjena eksperimentalne gustoće vjerojatnosti (density)**
+
+```{r}
+#Procjena eksperimentalne gustoce vjerojatnosti
+plot(density(data.acc$accx), col='red', main='Eksperimentalna gustoca vjerojatnosti varijable akcelerometra -x os', xlab='Akcelerometar x-os', ylab='Vjerojatnost pojave')
+plot(density(data.acc$accy), col='blue', main='Eksperimentalna gustoca vjerojatnosti varijable akcelerometra -y os', xlab='Akcelerometar y-os', ylab='Vjerojatnost pojave')
+plot(density(data.acc$accz), col='green', main='Eksperimentalna gustoca vjerojatnosti varijable akcelerometra -z os', xlab='Akcelerometar z-os', ylab='Vjerojatnost pojave')
+```
+
+Iz dobivenih grafova eksperimentalnih gustoća vjerojatnosti varijabli akcelerometra može se vidjeti kako je varijabla akcelerometra x -osi "najsličnija" Gaussovoj krivulji odnosno normalnoj razdiobi dok preostale dvije varijable u potpunosti odudaraju od normalne razdiobe.
+
+-   **Provedba statističkih testova - Shapiro-Wilkov i Kolmogorov-Smirnov test**
+
+    -   **Shapiro-Wilkov test**
+
+        -   Shappiro-Wilkovim statističkim testom želimo utvrditi slijede li opažanja statističke varijable normalnu razdiobu. S obzirom na navedeno, postavljamo nul-hipotezu (H0) koja govori kako opažanja slijede normalnu razdiobu. Alternativna hipoteza (H1) predstavljati će obrnuti slučaj. Ukoliko dobivena vrijednost p bude manja od 0.05 tada odbacujemo hipotezu H0 i prihvaćamo alternativnu hipotezu H1, a u protivnom prihvaćamo hipotezu H0
+
+            ```{r}
+            #Primjena Shappiro-Wilkovog statističkog testa nad statističkim varijablama akcelerometra
+            print(shapiro.test(data.acc$accx))
+            print(shapiro.test(data.acc$accy))
+            print(shapiro.test(data.acc$accz))
+            ```
+
+        -   **Zaključak:**
+
+            S obzirom da je dobivena **p vrijednost manja od 0.05** u sva tri slučaja, odbacujemo hipotezu H0 i prihvaćamo alternativnu hipotezu H1 odnosno zaključujemo kako opažanja svih statističkih varijabli akcelerometra (x, y, z) **ne slijede normalnu razdiobu** što je vidljivo i iz prethodnih grafova eksperimentalnih gustoća vjerojatnosti.
+
+    -   **Kolmogorov-Smirnov test**
+
+        -   Kolmogorov-Smirnovim statistički testom želimo utvrditi slijede li opažanja statističke varijable zadanu razdiobu. U sklopu seminara korištena je normalna razdioba (pnorm). Postavljena je nul-hipoteza (H0) koja govori kako opažanja slijede zadanu razdiobu. Alternativna hipoteza (H1) predstavljati će obrnuti slučaj. Ukoliko dobivena vrijednost p bude manja od 0.05 tada odbacujemo hipotezu H0 i prihvaćamo alternativnu hipotezu H1, a u protivnom prihvaćamo hipotezu H0. U odnosu na Shappiro-Wilkov test puno je precizniji
+
+            ```{r}
+            #Primjena Kolmogorov-Smirnovog statističkog testa nad statističkim varijablama akcelerometra
+            print(ks.test(data.acc$accx, 'pnorm'))
+            print(ks.test(data.acc$accy, 'pnorm'))
+            print(ks.test(data.acc$accz, 'pnorm'))
+            ```
+
+        -   **Zaključak:**
+
+            S obzirom da je dobivena **p vrijednost manja od 0.05** u sva tri slučaja, odbacujemo hipotezu H0 i prihvaćamo alternativnu hipotezu H1 odnosno zaključujemo kako opažanja svih statističkih varijabli akcelerometra (x, y, z) **ne slijede normalnu razdiobu** što je vidljivo i iz prethodnih grafova eksperimentalnih gustoća vjerojatnosti.
+
+## **6.) Priprema podataka lokacije za iscrtavanje putanje putem Leaflet mape**
+
+```{r}
+#Prilagodba podataka za crtanje putanje na Leaflet mapi
+print(summary(data.pos))
+plot(data.pos$longitude, data.pos$latitude, main='Prikaz putanje kretanja', xlab = "Geografska dužina", ylab = " Geografska širina")
+lonlat <- cbind(data.pos$longitude, data.pos$latitude)
+pts <- SpatialPoints(lonlat)
+crdref <- CRS('+proj=longlat +datum=WGS84')
+pts <- SpatialPoints(lonlat, proj4string=crdref)
+lns <- spLines(lonlat, crs=crdref)
+```
+
+Prije samog iscrtavanja putanje kretanja na Leaflet mapu bilo je potrebno prilagoditi podatke što je učinjeno kodom iznad. Također, prikazan je graf putanje kretanja.
+
+## **7.) Priprema točaka za mogućnost interakcije u željenoj točki putanje kretanja (trajektorije)**
+
+```{r}
+#Priprema točaka za interakciju na Leaflet mapi
+#Za iscrtavanje uzeta svaka 17. točka putanje kretanja
+interval_of_dots <- 17
+lat_nth <- data.pos$latitude[seq(1, length(data.pos$latitude), interval_of_dots)]
+lon_nth <- data.pos$longitude[seq(1, length(data.pos$longitude), interval_of_dots)]
+time_nth <- date[seq(1, length(date), interval_of_dots)]
+accX_nth <- data.acc$accx[seq(1, length(data.acc$accx), interval_of_dots)]
+accY_nth <- data.acc$accy[seq(1, length(data.acc$accy), interval_of_dots)]
+accZ_nth <- data.acc$accz[seq(1, length(data.acc$accz), interval_of_dots)]
+alt_nth <- data.pos$height[seq(1, length(data.pos$height), interval_of_dots)]
+```
+
+S obzirom da je očitanih podataka u našoj .csv datoteci **previše (oko 3720)**, **točke na našoj putanji kretanja bile bi pregusto raspoređene** te bi samim time preglednost i mogućnost interakcije bili otežani.
+
+Kako bi riješili navedeni problem, odlučili smo prikazati, proizvoljno, svako 17-o očitanje na našoj putanji kretanja. Navedeni razmak u prikazu točaka moguće je promijeniti u samome kodu (varijabla **interval_of_dots**).
+
+## **8.) Deklaracija Leaflet mape, iscrtavanje putanje kretanja i interaktivnih točaka**
+
+```{r}
+#Deklaracija leaflet mape, dodavanje putanje kretanja i prikaz interaktivnih točaka
+map <- leaflet() 
+map <- addTiles(map)
+
+
+map <- addCircleMarkers(map,lng = lon_nth, lat = lat_nth, 
+                 color = 'blue', 
+                 popup = paste("<b>Vrijeme:", time_nth, "</b><br>",
+                               "Geografska dužina:", lon_nth, "<br>",
+                               "Geografska širina:", lat_nth, "<br>",
+                               "Geografska visina:", alt_nth, " m <br>",
+                               "Akcelerometar X:", accX_nth, " m/s<sup>2</sup> <br>",
+                               "Akcelerometar Y:", accY_nth, " m/s<sup>2</sup><br>",
+                               "Akcelerometar Z:", accZ_nth, " m/s<sup>2</sup> <br>"),
+                 radius = 6,
+                 stroke = FALSE, fillOpacity = 0.4) 
+
+map <- addPolylines(map,
+                    data = lns,
+                    color = "red",
+                    weight = 1.5,
+                    smoothFactor = 0.8,
+                    opacity = 1.0)
+map
+```
+
+Na samome kraju, deklarirana je Leaflet mapa te je prikazana putanja kretanja crvenom linijom. Na samoj putanji prikazani su markeri plave boje u kojima je moguće očitati vrijednosti na samoj putanji. Pritiskom na marker ostvaruje se interakcija koja ispisuje podatke o vremenu, geografskoj dužini, širini i visini te podatke o akcelerometru što je moguće vidjeti na slici ispod.
+
+![](Leaflet%20mapa/Interaktivne%20tocke.PNG)
+
+## **9.) Konačni komentar i zaključak**
+
+U navedenom radu instalirali smo i upoznali se s radom AndroSensor aplikacije kojom su prikupljeni podaci (akcelerometar, lokacija, vrijeme) prilikom dnevne aktivnosti u trajanju od barem 30 minuta. Podaci su bili spremljeni u obliku .csv datoteke koja je s mobitela prebačena na računalo kako bi se mogla provesti analiza podataka putem jezika za statitstičko računarstvo R.
+
+Na samome početku učitali smo podatke iz naše .csv datoteke, proveli opisnu statističku analizu nad podacima akceleracije te grafički prikazali rezultate analize putem kutijastih dijagrama.
+
+Nakon navedenog nacrtali smo eksperimentalne gustoće vjerojatnosti kako bi vizualno dobili dojam slijede li podaci neku vrstu razdiobe podataka (npr. normalnu), a zatim smo proveli statističke testove kako bi sa sigurnošću potvrdili slijede li podaci normalnu razidobu ili od nje odudaraju. Zaključili smo kako niti jedan podatak akceleracije (x,y,z) ne slijedi normalnu razdiobu.
+
+U idućem koraku pripremili smo podatke lokacije za iscrtavanje putanje kretanja kao i točke koje će pružiti mogućnost interakcije na navedenoj putanji. Na samome kraju, definirali smo Leaflet mapu i na njoj prikazali putanju kretanja i markere za ispis očitanja u navedenoj točki putanje.
+
+Sve u svemu, rad na ovome projektu nam je bio zanimljiv i poučan. Jako veliki dio onoga što smo naučili na kolegiju "Usluge zasnovane na lokaciji" primijenili smo i u ovome radu. Navedenu skriptu moći ćemo iskoristiti i u nekoj budućoj analizi nad drugim skupom podataka.
